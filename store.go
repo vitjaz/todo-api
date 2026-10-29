@@ -10,6 +10,8 @@ type Store struct {
 	db *sql.DB
 }
 
+const TableName string = "todos"
+
 func NewStore(path string) (*Store, error) {
 	// открыть базу
 	db, err := sql.Open("sqlite", path)
@@ -39,7 +41,7 @@ func (s *Store) initSchema() error {
 		description TEXT DEFAULT '',
 		status TEXT NOT NULL DEFAULT 'new',
 		author TEXT NOT NULL,
-		created_at TEXT NOT NULL DEFAULT datetime(),
+		created_at TEXT NOT NULL,
 		completed_at TEXT DEFAULT NULL
 	)
 	`)
@@ -56,4 +58,8 @@ func (s *Store) initSchema() error {
 	// Не ошибка, но конвенция почти всех кодовых баз.
 
 	return err
+}
+
+func (s *Store) Close() {
+	s.db.Close()
 }

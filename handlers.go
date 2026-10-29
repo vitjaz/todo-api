@@ -40,24 +40,61 @@ type createTodoRequest struct {
 //   - поставь t.CreatedAt = time.Now().UTC() и t.Status = StatusNew перед INSERT
 //     (или оставь это серверу через DEFAULT — но тогда верни id и перечитай)
 func (s *Store) CreateTodo(t *Todo) error {
-	return nil // заглушка
+
+	t.Status = StatusNew
+	t.CreatedAt = time.Now().UTC()
+
+	res, err := s.db.Exec(`
+	INSERT INTO todos (title, description, author, status, created_at) VALUES (?, ?, ?, ?, ?)
+	`, t.Title, t.Description, t.Author, t.Status, t.CreatedAt.Format(time.RFC3339))
+
+	if err != nil {
+		return err
+	}
+
+	id, errInsert := res.LastInsertId()
+
+	if errInsert != nil {
+		return errInsert
+	}
+
+	t.ID = id
+
+	return nil
 }
 
 // handleCreateTodo — хендлер POST /todos.
 func (s *Store) handleCreateTodo(w http.ResponseWriter, r *http.Request) {
 	var req createTodoRequest
 
-	// TODO 2 (ты): декодируй тело запроса в req через json.NewDecoder(r.Body).Decode(&req)
-	//   - если ошибка декодирования → http.Error(w, "...", http.StatusBadRequest) и return
-	//   - проверь req.Title != "" — иначе тоже 400 (NOT NULL из схемы здесь, на входе)
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		http.Error(w, "Invalid Request Body", http.StatusBadRequest)
+		return
+	}
 
-	// TODO 3 (ты): собери Todo из req, вызови s.CreateTodo(&todo)
-	//   - ошибка базы → 500, НЕ свети текст ошибки базы клиенту (http.Error с общим текстом)
+	if req.Title == "" {
+		http.Error(w, "Title is missing", http.StatusBadRequest)
+		return
+	}
 
-	// TODO 4 (ты): верни созданный объект:
-	//   w.Header().Set("Content-Type", "application/json")
-	//   w.WriteHeader(http.StatusCreated) // 201, а не 200 — ресурс создан
-	//   json.NewEncoder(w).Encode(todo)
+	todo := Todo{
+		Title:       req.Title,
+		Description: req.Description,
+		Author:      req.Author,
+	}
+
+	errFromDB := s.CreateTodo(&todo)
+
+	if errFromDB != nil {
+		http.Error(w, "Error from DB", http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(todo)
+
 }
 
 // TODO 5 (я потом): подключим это в main.go:
